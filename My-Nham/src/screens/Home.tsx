@@ -3,42 +3,24 @@ import {
   View,
   StyleSheet,
   FlatList,
-  SafeAreaView,
   Text,
   Modal,
   ScrollView,
-  Image,
-  Pressable,
   ActivityIndicator,
   Alert,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
+import CardRecipe from "../components/CardRecipe";
 import { Recipe } from "../types/recipe";
 import { HomeScreenProps } from "../types/navigation";
-
-let receitasArmazenadas: Recipe[] = [];
-
-function initDatabase(): void {
-  
-}
-
-function getReceitas(): Recipe[] {
-  return [...receitasArmazenadas];
-}
-
-function addReceita(receita: Omit<Recipe, "id">): void {
-  receitasArmazenadas = [
-    ...receitasArmazenadas,
-    { ...receita, id: String(Date.now()) },
-  ];
-}
-
-function deleteReceita(id: string): void {
-  receitasArmazenadas = receitasArmazenadas.filter(
-    (receita) => receita.id !== id,
-  );
-}
+import {
+  initDatabase,
+  getReceitas,
+  addReceita,
+  deleteReceita,
+} from "../database/database";
 
 export default function Home({ navigation }: HomeScreenProps) {
   const [recipes, setRecipes] = useState<Recipe[]>([]);
@@ -46,14 +28,14 @@ export default function Home({ navigation }: HomeScreenProps) {
   const [searchText, setSearchText] = useState("");
   const [isModalVisible, setIsModalVisible] = useState(false);
 
-
+  // Estados dos campos do formulário no modal
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newImg, setNewImg] = useState("");
   const [newIngredients, setNewIngredients] = useState("");
   const [newPrepareMode, setNewPrepareMode] = useState("");
 
-
+  // Inicializa o banco de dados na montagem do componente
   useEffect(() => {
     try {
       initDatabase();
@@ -65,36 +47,45 @@ export default function Home({ navigation }: HomeScreenProps) {
     }
   }, []);
 
-  
+  // Recarrega os dados do banco sempre que a tela recebe o foco da navegação
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", carregarReceitas);
     return unsubscribe;
   }, [navigation]);
 
+  // Busca a lista atualizada de receitas do SQLite
   const carregarReceitas = useCallback(() => {
     try {
-      setRecipes(getReceitas());
+      const dados = getReceitas();
+      setRecipes(dados);
     } catch (error) {
       console.error("Erro ao carregar receitas:", error);
+      Alert.alert("Erro", "Não foi possível buscar as receitas.");
     } finally {
       setIsLoading(false);
     }
   }, []);
 
-
+  // Filtro em tempo real baseado no texto digitado no campo de busca
   const filteredRecipes = recipes.filter(
     (recipe) =>
       recipe.title.toLowerCase().includes(searchText.toLowerCase()) ||
-      recipe.description.toLowerCase().includes(searchText.toLowerCase()),
+      (recipe.description &&
+        recipe.description.toLowerCase().includes(searchText.toLowerCase())),
   );
 
+  // Redireciona para a tela de detalhes enviando a receita selecionada
   function handleOpenRecipe(recipe: Recipe) {
     navigation.navigate("RecipeProduct", { recipe });
   }
 
+  // Valida o formulário, insere no banco e limpa os campos
   function handleAddRecipe() {
     if (!newTitle.trim()) {
-      Alert.alert("Atenção", "Por favor, informe ao menos o título da receita.");
+      Alert.alert(
+        "Atenção",
+        "Por favor, informe ao menos o título da receita.",
+      );
       return;
     }
 
@@ -107,9 +98,9 @@ export default function Home({ navigation }: HomeScreenProps) {
         prepareMode: newPrepareMode.trim(),
       });
 
-      carregarReceitas(); // busca de novo do banco pra refletir a receita nova
+      carregarReceitas();
 
-      // Limpa o formulário e fecha o modal
+      // Reset dos campos e fechamento do modal
       setNewTitle("");
       setNewDescription("");
       setNewImg("");
@@ -122,28 +113,33 @@ export default function Home({ navigation }: HomeScreenProps) {
     }
   }
 
-  function handleDeleteRecipe(id: string) {
-    Alert.alert("Excluir receita", "Tem certeza que deseja excluir esta receita?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Excluir",
-        style: "destructive",
-        onPress: () => {
-          try {
-            deleteReceita(id);
-            carregarReceitas();
-          } catch (error) {
-            console.error("Erro ao excluir receita:", error);
-            Alert.alert("Erro", "Não foi possível excluir a receita.");
-          }
+  // Deleta a receita ao pressionar e segurar o card
+  function handleDeleteRecipe(id: number) {
+    Alert.alert(
+      "Excluir receita",
+      "Tem certeza que deseja excluir esta receita?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: () => {
+            try {
+              deleteReceita(id);
+              carregarReceitas();
+            } catch (error) {
+              console.error("Erro ao excluir receita:", error);
+              Alert.alert("Erro", "Não foi possível excluir a receita.");
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   }
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Header: Busca + Botão ADD (Conforme wireframe) */}
+      {/* Barra superior de busca e botão de adicionar */}
       <View style={styles.header}>
         <View style={styles.inputContainer}>
           <Input
@@ -161,29 +157,23 @@ export default function Home({ navigation }: HomeScreenProps) {
         />
       </View>
 
-      {/* Lista de Receitas */}
+      {/* Lista de receitas ou indicador de carregamento */}
       {isLoading ? (
         <View style={styles.emptyContainer}>
-          <ActivityIndicator size="large" color="#666" />
+          <ActivityIndicator size="large" color="#4CAF50" />
         </View>
       ) : (
         <FlatList
           data={filteredRecipes}
-          keyExtractor={(item) => item.id}
+          keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => (
-            <Pressable
-              style={styles.recipeCard}
+            <CardRecipe
+              image={item.img || "https://via.placeholder.com/150"}
+              title={item.title}
+              subTitle={item.description || "Sem descrição"}
               onPress={() => handleOpenRecipe(item)}
               onLongPress={() => handleDeleteRecipe(item.id)}
-            >
-              <Image source={{ uri: item.img }} style={styles.recipeImage} />
-              <View style={styles.recipeInfo}>
-                <Text style={styles.recipeTitle}>{item.title}</Text>
-                <Text style={styles.recipeDescription} numberOfLines={2}>
-                  {item.description}
-                </Text>
-              </View>
-            </Pressable>
+            />
           )}
           contentContainerStyle={styles.listContainer}
           ListEmptyComponent={
@@ -194,7 +184,7 @@ export default function Home({ navigation }: HomeScreenProps) {
         />
       )}
 
-      {/* Modal de Cadastro de Receita */}
+      {/* Modal de formulário para nova receita */}
       <Modal visible={isModalVisible} animationType="slide" transparent={false}>
         <SafeAreaView style={styles.modalContainer}>
           <ScrollView contentContainerStyle={styles.modalContent}>
@@ -275,32 +265,6 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     padding: 16,
-  },
-  recipeCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#fff",
-    borderRadius: 12,
-    marginBottom: 12,
-    overflow: "hidden",
-    elevation: 2,
-  },
-  recipeImage: {
-    width: 96,
-    height: 96,
-  },
-  recipeInfo: {
-    flex: 1,
-    padding: 12,
-  },
-  recipeTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  recipeDescription: {
-    color: "#666",
-    fontSize: 14,
   },
   emptyContainer: {
     alignItems: "center",

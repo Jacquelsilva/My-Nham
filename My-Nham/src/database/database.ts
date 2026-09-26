@@ -1,10 +1,10 @@
 import * as SQLite from "expo-sqlite";
 import { Recipe, RecipeAddDTO } from "../types/recipe";
 
-
+// Inicializa a conexão síncrona com o arquivo do banco de dados
 const db = SQLite.openDatabaseSync("receitas.db");
 
-
+// Cria a tabela de receitas caso ainda não exista no dispositivo
 export function initDatabase() {
   db.execSync(`
     CREATE TABLE IF NOT EXISTS receitas (
@@ -19,8 +19,7 @@ export function initDatabase() {
   `);
 }
 
-
-// Retorna todas as receitas do SQLite
+// Retorna todas as receitas gravadas ordenadas pela data de criação
 export function getReceitas(): Recipe[] {
   const rows = db.getAllSync<Recipe>(
     'SELECT * FROM receitas ORDER BY criado_em DESC;'
@@ -28,7 +27,7 @@ export function getReceitas(): Recipe[] {
   return rows;
 }
 
-// Busca uma receita específica pelo id no SQLite
+// Busca o registro de uma receita específica através do seu ID
 export function getReceitaById(id: number): Recipe | null {
   const row = db.getFirstSync<Recipe>(
     "SELECT * FROM receitas WHERE id = ?;",
@@ -42,7 +41,7 @@ export function getReceitaById(id: number): Recipe | null {
   return row;
 }
 
-// Insere uma nova receita
+// Insere uma nova receita na tabela e retorna o ID gerado
 export function addReceita(receita: RecipeAddDTO): number {
   const result = db.runSync(
     `INSERT INTO receitas (title, description, img, ingredients, prepareMode)
@@ -58,7 +57,7 @@ export function addReceita(receita: RecipeAddDTO): number {
   return result.lastInsertRowId;
 }
 
-// Remove uma receita pelo id
+// Remove o registro da receita correspondente ao ID informado
 export function deleteReceita(id: number) {
   db.runSync("DELETE FROM receitas WHERE id = ?;", [id]);
 }

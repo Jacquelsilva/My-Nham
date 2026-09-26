@@ -1,47 +1,50 @@
-import React from "react";
-import {
-  View,
-  StyleSheet,
-  SafeAreaView,
-  Text,
-  ScrollView,
-  Image,
-  Alert,
-} from "react-native";
+import { View, StyleSheet, Text, ScrollView, Image, Alert } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Button } from "../components/ui/Button";
 import { RecipeProductScreenProps } from "../types/navigation";
 import { deleteReceita } from "../database/database";
 
-export default function RecipeProduct({ route, navigation }: RecipeProductScreenProps) {
+export default function RecipeProduct({
+  route,
+  navigation,
+}: RecipeProductScreenProps) {
+  // Extrai o objeto da receita passado via parâmetro na navegação
   const { recipe } = route.params;
 
+  // Dispara o alerta de confirmação e executa a exclusão no SQLite
   function handleDelete() {
-    Alert.alert("Excluir receita", "Tem certeza que deseja excluir esta receita?", [
-      { text: "Cancelar", style: "cancel" },
-      {
-        text: "Excluir",
-        style: "destructive",
-        onPress: () => {
-          try {
-            deleteReceita(recipe.id);
-            navigation.goBack(); // volta pra Home, que recarrega a lista ao ganhar foco
-          } catch (error) {
-            console.error("Erro ao excluir receita:", error);
-            Alert.alert("Erro", "Não foi possível excluir a receita.");
-          }
+    Alert.alert(
+      "Excluir receita",
+      "Tem certeza que deseja excluir esta receita?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        {
+          text: "Excluir",
+          style: "destructive",
+          onPress: () => {
+            try {
+              deleteReceita(recipe.id);
+              navigation.goBack(); // Retorna para a tela anterior (Home)
+            } catch (error) {
+              console.error("Erro ao excluir receita:", error);
+              Alert.alert("Erro", "Não foi possível excluir a receita.");
+            }
+          },
         },
-      },
-    ]);
+      ],
+    );
   }
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.content}>
+        {/* Imagem principal da receita */}
         <Image source={{ uri: recipe.img }} style={styles.image} />
 
         <View style={styles.body}>
           <Text style={styles.title}>{recipe.title}</Text>
 
+          {/* Renderização condicional da descrição */}
           {recipe.description ? (
             <Text style={styles.description}>{recipe.description}</Text>
           ) : null}
@@ -56,8 +59,13 @@ export default function RecipeProduct({ route, navigation }: RecipeProductScreen
             {recipe.prepareMode || "Nenhum modo de preparo informado."}
           </Text>
 
+          {/* Botões de Ação */}
           <View style={styles.actions}>
-            <Button title="Voltar" variant="secondary" onPress={() => navigation.goBack()} />
+            <Button
+              title="Voltar"
+              variant="secondary"
+              onPress={() => navigation.goBack()}
+            />
             <Button
               title="Excluir Receita"
               variant="primary"

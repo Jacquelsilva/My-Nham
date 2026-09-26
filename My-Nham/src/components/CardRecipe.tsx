@@ -1,4 +1,3 @@
-import React from "react";
 import { View, Text, Image, StyleSheet, TouchableOpacity } from "react-native";
 
 export interface CardRecipeProps {
@@ -6,16 +5,24 @@ export interface CardRecipeProps {
   title: string;
   subTitle: string;
   onPress?: () => void;
+  onLongPress?: () => void;
 }
 
+// Componente reusável para exibir o card de cada receita na lista
 export default function CardRecipe({
   image,
   title,
   subTitle,
   onPress,
+  onLongPress,
 }: CardRecipeProps) {
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress} activeOpacity={0.8}>
+    <TouchableOpacity
+      style={styles.card}
+      onPress={onPress}
+      onLongPress={onLongPress}
+      activeOpacity={0.8}
+    >
       <Image source={{ uri: image }} style={styles.image} />
       <View style={styles.info}>
         <Text style={styles.title} numberOfLines={1}>
