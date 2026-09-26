@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   StyleSheet,
@@ -7,27 +7,81 @@ import {
   Text,
   Modal,
   ScrollView,
+  Image,
+  Pressable,
+  ActivityIndicator,
+  Alert,
 } from "react-native";
 import { Input } from "../components/ui/Input";
 import { Button } from "../components/ui/Button";
-import CardRecipe from "../components/ui/CardRecipe";
-import { MOCK_RECIPES } from "../data/mockRecipes";
 import { Recipe } from "../types/recipe";
 import { HomeScreenProps } from "../types/navigation";
 
+let receitasArmazenadas: Recipe[] = [];
+
+function initDatabase(): void {
+  
+}
+
+function getReceitas(): Recipe[] {
+  return [...receitasArmazenadas];
+}
+
+function addReceita(receita: Omit<Recipe, "id">): void {
+  receitasArmazenadas = [
+    ...receitasArmazenadas,
+    { ...receita, id: String(Date.now()) },
+  ];
+}
+
+function deleteReceita(id: string): void {
+  receitasArmazenadas = receitasArmazenadas.filter(
+    (receita) => receita.id !== id,
+  );
+}
+
 export default function Home({ navigation }: HomeScreenProps) {
-  const [recipes, setRecipes] = useState<Recipe[]>(MOCK_RECIPES);
+  const [recipes, setRecipes] = useState<Recipe[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [searchText, setSearchText] = useState("");
   const [isModalVisible, setIsModalVisible] = useState(false);
 
-  // Estados do formulário de nova receita
+
   const [newTitle, setNewTitle] = useState("");
   const [newDescription, setNewDescription] = useState("");
   const [newImg, setNewImg] = useState("");
   const [newIngredients, setNewIngredients] = useState("");
   const [newPrepareMode, setNewPrepareMode] = useState("");
 
-  // Filtra as receitas em tempo real com base no texto de busca
+
+  useEffect(() => {
+    try {
+      initDatabase();
+      carregarReceitas();
+    } catch (error) {
+      console.error("Erro ao iniciar o banco de dados:", error);
+      Alert.alert("Erro", "Não foi possível abrir o banco de receitas.");
+      setIsLoading(false);
+    }
+  }, []);
+
+  
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("focus", carregarReceitas);
+    return unsubscribe;
+  }, [navigation]);
+
+  const carregarReceitas = useCallback(() => {
+    try {
+      setRecipes(getReceitas());
+    } catch (error) {
+      console.error("Erro ao carregar receitas:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+
   const filteredRecipes = recipes.filter(
     (recipe) =>
       recipe.title.toLowerCase().includes(searchText.toLowerCase()) ||
@@ -40,28 +94,51 @@ export default function Home({ navigation }: HomeScreenProps) {
 
   function handleAddRecipe() {
     if (!newTitle.trim()) {
-      alert("Por favor, informe ao menos o título da receita.");
+      Alert.alert("Atenção", "Por favor, informe ao menos o título da receita.");
       return;
     }
 
-    const newRecipe: Recipe = {
-      id: Date.now().toString(),
-      title: newTitle,
-      description: newDescription,
-      img: newImg || "https://via.placeholder.com/150",
-      ingredients: newIngredients,
-      prepareMode: newPrepareMode,
-    };
+    try {
+      addReceita({
+        title: newTitle.trim(),
+        description: newDescription.trim(),
+        img: newImg.trim() || "https://via.placeholder.com/150",
+        ingredients: newIngredients.trim(),
+        prepareMode: newPrepareMode.trim(),
+      });
 
-    setRecipes([newRecipe, ...recipes]);
+      carregarReceitas(); // busca de novo do banco pra refletir a receita nova
 
-    // Limpa o formulário e fecha o modal
-    setNewTitle("");
-    setNewDescription("");
-    setNewImg("");
-    setNewIngredients("");
-    setNewPrepareMode("");
-    setIsModalVisible(false);
+      // Limpa o formulário e fecha o modal
+      setNewTitle("");
+      setNewDescription("");
+      setNewImg("");
+      setNewIngredients("");
+      setNewPrepareMode("");
+      setIsModalVisible(false);
+    } catch (error) {
+      console.error("Erro ao salvar receita:", error);
+      Alert.alert("Erro", "Não foi possível salvar a receita.");
+    }
+  }
+
+  function handleDeleteRecipe(id: string) {
+    Alert.alert("Excluir receita", "Tem certeza que deseja excluir esta receita?", [
+      { text: "Cancelar", style: "cancel" },
+      {
+        text: "Excluir",
+        style: "destructive",
+        onPress: () => {
+          try {
+            deleteReceita(id);
+            carregarReceitas();
+          } catch (error) {
+            console.error("Erro ao excluir receita:", error);
+            Alert.alert("Erro", "Não foi possível excluir a receita.");
+          }
+        },
+      },
+    ]);
   }
 
   return (
@@ -85,24 +162,37 @@ export default function Home({ navigation }: HomeScreenProps) {
       </View>
 
       {/* Lista de Receitas */}
-      <FlatList
-        data={filteredRecipes}
-        keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <CardRecipe
-            image={item.img}
-            title={item.title}
-            subTitle={item.description}
-            onPress={() => handleOpenRecipe(item)}
-          />
-        )}
-        contentContainerStyle={styles.listContainer}
-        ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>Nenhuma receita encontrada.</Text>
-          </View>
-        }
-      />
+      {isLoading ? (
+        <View style={styles.emptyContainer}>
+          <ActivityIndicator size="large" color="#666" />
+        </View>
+      ) : (
+        <FlatList
+          data={filteredRecipes}
+          keyExtractor={(item) => item.id}
+          renderItem={({ item }) => (
+            <Pressable
+              style={styles.recipeCard}
+              onPress={() => handleOpenRecipe(item)}
+              onLongPress={() => handleDeleteRecipe(item.id)}
+            >
+              <Image source={{ uri: item.img }} style={styles.recipeImage} />
+              <View style={styles.recipeInfo}>
+                <Text style={styles.recipeTitle}>{item.title}</Text>
+                <Text style={styles.recipeDescription} numberOfLines={2}>
+                  {item.description}
+                </Text>
+              </View>
+            </Pressable>
+          )}
+          contentContainerStyle={styles.listContainer}
+          ListEmptyComponent={
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>Nenhuma receita encontrada.</Text>
+            </View>
+          }
+        />
+      )}
 
       {/* Modal de Cadastro de Receita */}
       <Modal visible={isModalVisible} animationType="slide" transparent={false}>
@@ -186,8 +276,36 @@ const styles = StyleSheet.create({
   listContainer: {
     padding: 16,
   },
+  recipeCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    marginBottom: 12,
+    overflow: "hidden",
+    elevation: 2,
+  },
+  recipeImage: {
+    width: 96,
+    height: 96,
+  },
+  recipeInfo: {
+    flex: 1,
+    padding: 12,
+  },
+  recipeTitle: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 4,
+  },
+  recipeDescription: {
+    color: "#666",
+    fontSize: 14,
+  },
   emptyContainer: {
     alignItems: "center",
+    justifyContent: "center",
+    flex: 1,
     marginTop: 40,
   },
   emptyText: {
